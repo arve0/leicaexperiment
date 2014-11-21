@@ -1,4 +1,6 @@
 # LeicaExperiment #
+This project have been renamed! See [MatrixScreener on pypi](https://pypi.python.org/pypi/MatrixScreener).
+
 This is an python class which can be used to read the structured output from a Leica LAS Matrix Scan when using the data exporter (ome.tifs organized in slide/chamber/field folders).
 
 ## Install ##
@@ -27,7 +29,6 @@ for well in experiment.wells:
             image_data = imread(image.fullpath)
             do stuff...
 ```
-Also see [merger.py](/merger.py) example.
 
 
 ## Dependencies ##
