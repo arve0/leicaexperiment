@@ -8,7 +8,7 @@ through an object.
 ##
 import os, re, pydebug, fijibin.macro
 from collections import namedtuple
-from .utils import chop, apply_async
+from utils import chop, apply_async
 
 # compress
 import json

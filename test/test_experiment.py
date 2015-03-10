@@ -4,7 +4,7 @@ from py import path
 @pytest.fixture
 def experiment(tmpdir):
     "'experiment--test' in tmpdir. Returns Experiment object."
-    from matrixscreener.experiment import Experiment
+    from leicaexperiment import Experiment
     e = path.local(__file__).dirpath().join('experiment--test')
     e.copy(tmpdir.mkdir('experiment'))
 
@@ -42,7 +42,7 @@ def test_looping(experiment):
 
 def test_compression(tmpdir, experiment):
     "It should compress and decompress experiment without dataloss."
-    from matrixscreener.experiment import decompress
+    from leicaexperiment.experiment import decompress
     from PIL import Image
     import numpy as np
 
@@ -109,7 +109,7 @@ def test_stitch_png(tmpdir, experiment):
 
 def test_16bit(ometif16bit):
     "It should compress and decompress 16 bit TIFF without dataloss."
-    from matrixscreener.experiment import compress
+    from leicaexperiment.experiment import compress
     from PIL import Image
     import numpy as np
 
