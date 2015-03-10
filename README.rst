@@ -139,8 +139,8 @@ pip:
     pip install -r dev-requirements.txt
     ./setup.py develop
 
-Testing
-~~~~~~~
+run test
+^^^^^^^^
 
 .. code:: bash
 
@@ -149,12 +149,12 @@ Testing
 extra output, jump into pdb upon error
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-::
+.. code:: bash
 
     DEBUG=leicaexperiment tox -- --pdb -s
 
-Build documentation locally
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+build api reference
+^^^^^^^^^^^^^^^^^^^
 
 .. code:: bash
 

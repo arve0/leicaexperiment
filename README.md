@@ -118,17 +118,17 @@ pip install -r dev-requirements.txt
 ./setup.py develop
 ```
 
-### Testing
+#### run test
 ```bash
 tox
 ```
 
 #### extra output, jump into pdb upon error
-```
+```bash
 DEBUG=leicaexperiment tox -- --pdb -s
 ```
 
-### Build documentation locally
+#### build api reference
 ```bash
 make docs
 ```
