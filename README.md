@@ -139,4 +139,4 @@ make docs
 [travis]: http://travis-ci.org/arve0/leicaexperiment?branch=master
 [pypi-version]: https://pypip.in/version/leicaexperiment/badge.svg
 [pypi]: https://pypi.python.org/pypi/leicaexperiment
-[wheel]: https://pypip.in/wheel/leicaexperiment/badge.png
+[wheel]: https://pypip.in/wheel/leicaexperiment/badge.svg
