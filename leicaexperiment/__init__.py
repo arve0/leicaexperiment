@@ -4,4 +4,4 @@ __version__ = '0.0.1'
 
 __all__ = ['Experiment']
 
-from experiment import Experiment
+from .experiment import Experiment
