@@ -16,8 +16,8 @@ from PIL import Image
 from PIL.ImagePalette import ImagePalette
 from copy import copy
 
-# debug with `DEBUG=matrixscreener python script.py`
-debug = pydebug.debug('matrixscreener')
+# debug with `DEBUG=leicaexperiment python script.py`
+debug = pydebug.debug('leicaexperiment')
 
 # glob for consistent cross platform behavior
 def glob(pattern):
@@ -92,7 +92,7 @@ class Experiment:
         return glob(_pattern(self.path, 'stitched'))
 
     def __str__(self):
-        return 'matrixscreener.Experiment({})'.format(self.path)
+        return 'leicaexperiment.Experiment({})'.format(self.path)
 
     def __repr__(self):
         return self.__str__()
@@ -237,7 +237,7 @@ def stitch_macro(path, output_folder=None):
             output_files.append(output)
             if os.path.isfile(output):
                 # file already exists
-                print('matrixscreener stitched file already exists {}'.format(output))
+                print('leicaexperiment stitched file already exists {}'.format(output))
                 continue
             macros.append(fijibin.macro.stitch(path, filenames,
                                   fields_x, fields_y,
@@ -250,7 +250,7 @@ def stitch_macro(path, output_folder=None):
 def compress(images, delete_tif=False, folder=None):
     """Lossless compression. Save images as PNG and TIFF tags to json. Can be
     reversed with `decompress`. Will run in multiprocessing, where
-    number of workers is decided by ``matrixscreener.experiment._pools``.
+    number of workers is decided by ``leicaexperiment.experiment._pools``.
 
     Parameters
     ----------
@@ -353,7 +353,7 @@ def compress_blocking(images, delete_tif=False, folder=None):
 
         except (IOError, AssertionError) as e:
             # print error - continue
-            print('matrixscreener {}'.format(e))
+            print('leicaexperiment {}'.format(e))
 
     return compressed_images
 
@@ -443,7 +443,7 @@ def decompress(images, delete_png=False, delete_json=False, folder=None):
 
         except (IOError, AssertionError) as e:
             # print error - continue
-            print('matrixscreener {}'.format(e))
+            print('leicaexperiment {}'.format(e))
 
     return decompressed_images
 
