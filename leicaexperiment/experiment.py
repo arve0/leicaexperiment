@@ -1,307 +1,562 @@
-#!/usr/bin/env python
 # encoding: utf-8
 """
-Class Experiment(path) to organize matrix scans from Leica LAS MatrixScreener (data explorer's ome.tif).
+Access matrix scans from Leica LAS AF MatrixScreener (Data Exporter)
+through an object.
 """
-# format https://github.com/numpy/numpy/blob/master/doc/HOWTO_DOCUMENT.rst.txt
+##
+# imports
+##
+import os, re, pydebug, fijibin.macro
+from collections import namedtuple
+from .utils import chop, apply_async
 
-# libaries
-import os, glob, tifffile, numpy
+# compress
+import json
+from PIL import Image
+from PIL.ImagePalette import ImagePalette
+from copy import copy
 
-## notes
-#
-# - one z-plane at the time
-# - put this in docstring when done
-#
-#
-#
+# debug with `DEBUG=matrixscreener python script.py`
+debug = pydebug.debug('matrixscreener')
+
+# glob for consistent cross platform behavior
+def glob(pattern):
+    "Sorted glob."
+    from glob import glob as sysglob
+    return sorted(sysglob(pattern))
+
+# variables in case custom folders
+_slide = 'slide'
+_chamber = 'chamber'
+_field = 'field'
+_image = 'image'
+
 
 # classes
-class Experiment(object):
+class Experiment:
     def __init__(self, path):
-        """Leica LAS matrixscreener scan job.
+        """Leica LAS AF MatrixScreener experiment.
 
         Parameters
         ----------
-        path: string
-            Path to matrix scan containing 'slide-S00'(assumed) and 'AdditinalData'.
+        path : string
+            Path to matrix scan containing ``slide-SXX`` and ``AdditinalData``.
 
-        Raises
-        ------
-        FileNotFoundError:
-            If slide--S00 is not found.
-
-        Returns
-        -------
-        None
-        """
-        assumed_slide = 'slide--S00'
-        self.path = os.path.abspath(path)
-        self.slide_path = os.path.join(self.path, assumed_slide)
-        self.str_time = self.path.split('experiment--')[1]
-
-        # number of wells in U(x), V(y) direction
-        chambers = glob.glob(self.slide_path + '/chamber--*')
-        if len(chambers) == 0:
-            raise FileNotFoundError
-        last_chamber = chambers[-1]
-        u, v = last_chamber.split('--U')[1].split('--V')
-        self.last_well_u = u # string of last u,v
-        self.last_well_v = v
-        self.wells_u = int(u) + 1 # directory string start at 0
-        self.wells_v = int(v) + 1
-
-        # check number of chambers
-        if len(chambers) != self.wells_u * self.wells_v:
-            print('Warning: Did scan complete? Number of chambers != wells_u * wells_v in ' + self.path)
-
-        # add wells (assume slide--S00)
-        self.wells = []
-        for chamber in chambers:
-            p = os.path.join(self.slide_path, chamber)
-            self.wells.append(Well(p))
-
-
-class Well(object):
-    def __init__(self, path):
-        """Well of Leica matrix scan.
-
-        Parameters
+        Attributes
         ----------
-        path: string
-            Path to 'chamber--UXX-VXX' containing field folders
-
-        Returns
-        -------
-        None
+        path : string
+            Full path to experiment.
+        dirname : string
+            Path to folder below experiment.
+        basename : string
+            Foldername of experiment.
         """
-        self.path = path
+        _set_path(self, path)
 
-        # setup position - U(x) and V(y)
-        u, v = self.path.split('--U')[1].split('--V')
-        self.str_u, self.str_v = u, v
-        self.u = int(u)
-        self.v = int(v)
+        self._slide_path = _pattern(self.path, _slide)
+        self._well_path = _pattern(self._slide_path, _chamber)
+        self._field_path = _pattern(self._well_path, _field)
+        self._image_path = _pattern(self._field_path, _image)
 
-        # find number of fields
-        fields = glob.glob(self.path + '/field--*')
-        if len(fields) == 0:
-            raise FileNotFoundError
-        last_field = fields[-1]
-        x, y = last_field.split('--X')[1].split('--Y')
-        self.last_field_x = x # string of last x,y
-        self.last_wells_y = y
-        self.fields_x = int(x) + 1 # directory string start at 0
-        self.fields_y = int(y) + 1
+        # alias
+        self.chambers = self.wells
 
-        # check number of fields
-        if len(fields) != self.fields_x * self.fields_y:
-            print('Warning: Did scan complete? Number of fields != fields_x * fields_y in ' + self.path)
+    @property
+    def slides(self):
+        "List of paths to slides."
+        return glob(self._slide_path)
 
-        # add fields
-        self.fields = []
-        for field in fields:
-            p = os.path.join(self.path, field)
-            self.fields.append(Field(p))
+    @property
+    def wells(self):
+        "List of paths to wells."
+        return glob(self._well_path)
 
-        # z-stacks, assume they are the same for all fields
-        self.z_stacks = self.fields[0].z_stacks
-        self.channels = self.fields[0].channels
+    @property
+    def fields(self):
+        "List of paths to fields."
+        return glob(self._field_path)
 
+    @property
+    def images(self):
+        "List of paths to images."
+        tifs = _pattern(self._image_path, extension='tif')
+        pngs = _pattern(self._image_path, extension='png')
+        imgs = []
+        imgs.extend(glob(tifs))
+        imgs.extend(glob(pngs))
+        return imgs
 
-    def merge(self, z_stack, channel, overlap=None):
-        """Merge images from specified z-stack.
-
-        Parameters
-        ----------
-        z-stack: int
-            Which Z-stack to merge.
-        overlap: float
-            If images should be cut when merged.
-
-        Returns
-        -------
-        ndarray of merged image.
-        """
-        if z_stack >= self.z_stacks or channel >= self.channels:
-            return None
-
-        # filter out the images we want
-        images = [image for field in self.fields
-                        for image in field.images
-                            if image.z == z_stack and
-                               image.channel == channel]
-
-        # create empty array for merged image
-        y = images[0].shape[0]
-        x = images[0].shape[1]
-        shape = (self.fields_y * y, self.fields_x * x)
-        merged_image = numpy.zeros(shape, dtype=numpy.uint8) # TODO do not hard code type
-
-        # merge images
-        for image in images:
-            start_y = image.y * y
-            start_x = image.x * x
-            stop_y = start_y + y
-            stop_x = start_x + x
-            image_data = tifffile.imread(image.fullpath, key=0)
-            image_data = numpy.rot90(image_data, k=3)
-            # TODO: possible to detect rotation?
-            merged_image[start_y:stop_y, start_x:stop_x] = image_data
-
-        return merged_image
-
-
-
-class Field(object):
-    def __init__(self, path):
-        """Field of Leica matrix scan.
-
-        Provides
-        --------
-        channels:
-        images:
-        path:
-        str_x, str_y, str_z_stacks:
-        x, y:
-        z_stacks:
-
-        Parameters
-        ----------
-        path: string
-            Path to 'field--Xnn-Ynn' containing image...ome.tifs
-
-        Returns
-        -------
-        None
-        """
-        self.path = path
-
-        # setup x and y properties to field
-        x, y = path.split('--X')[1].split('--Y')
-        self.str_x, self.str_y = x, y
-        self.x = int(x)
-        self.y = int(y)
-
-        # find number of z scans
-        images = glob.glob(self.path + '/image--*.ome.tif')
-        last_image = images[-1]
-        last_z_stack = between('--Z', '--', last_image)
-        self.str_z_stacks = last_z_stack
-        self.z_stacks = int(last_z_stack) + 1
-        # number of channels
-        last_channel = between('--C', '.ome.tif', last_image)
-        self.str_channels = last_channel
-        self.channels = int(last_channel) + 1
-
-        # add images
-        self.images = []
-        for image in images:
-            f = os.path.join(self.path, image)
-            self.images.append(Image(f))
-
-
-
-class Image():
-    def __init__(self, filename):
-        """OME-TIFF image.
-
-        Provides TODO:description
-        --------
-        channel:
-        filename:
-        fullpath:
-        path:
-        u,v:
-        x,y,z:
-        xml:
-
-        Parameters
-        ----------
-        filename:
-            Complete filename including path to image...ome.tif
-
-        Returns
-        -------
-        None
-        """
-        self.fullpath = filename
-        self.filename = os.path.basename(filename)
-        self.path = os.path.dirname(filename)
-
-        u = between('--U', '--', self.filename)
-        v = between('--V', '--', self.filename)
-        self.u = int(u)
-        self.v = int(v)
-
-        x = between('--X', '--', self.filename)
-        y = between('--Y', '--', self.filename)
-        z = between('--Z', '--', self.filename)
-        self.x = int(x)
-        self.y = int(y)
-        self.z = int(z)
-
-        channel = between('--C', '.ome.tif', self.filename)
-        self.channel = int(channel)
-
-        # image properties, xml
-        page = tifffile.TIFFfile(filename).pages[0]
-        self.shape = page.shape
-        self.xml = page.tags['image_description'].value
-
+    @property
+    def stitched(self):
+        "List of stitched images if they are in experiment folder."
+        return glob(_pattern(self.path, 'stitched'))
 
     def __str__(self):
-        return '{}, z:{}, channel:{}'.format(self.filename, self.z, self.channel)
+        return 'matrixscreener.Experiment({})'.format(self.path)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def stitch(self, folder=None):
+        """Stitches all wells in experiment with ImageJ. Stitched images are
+        saved in experiment root.
+
+        Images which already exists are omitted stitching.
+
+        Parameters
+        ----------
+        folder : string
+            Where to store stitched images. Defaults to experiment path.
+
+        Returns
+        -------
+        list
+            Filenames of stitched images. Files which already exists before
+            stitching are also returned.
+        """
+        debug('stitching ' + self.__str__())
+        if not folder:
+            folder = self.path
+
+        # create list of macros and files
+        macros = []
+        files = []
+        for well in self.wells:
+            f,m = stitch_macro(well, folder)
+            macros.extend(m)
+            files.extend(f)
+
+        output_files = apply_async(fijibin.macro.run, macro=(macros, True),
+                                   output_files=(files,True))
+
+        return output_files
+
+    def compress(self, delete_tif=False, folder=None):
+        """Lossless compress all images in experiment to PNG. If folder is
+        omitted, images will not be moved.
+
+        Images which already exists in PNG are omitted.
+
+        Parameters
+        ----------
+        folder : string
+            Where to store PNGs. Defaults to the folder they are in.
+        delete_tif : bool
+            If set to truthy value, ome.tifs will be deleted after compression.
+
+        Returns
+        -------
+        list
+            Filenames of PNG images. Files which already exists before
+            compression are also returned.
+        """
+        return compress(self.images, delete_tif, folder)
 
 
 
-
-# functions
-def main():
-    #TODO
-    """Run when executed as script."""
-
-    path = raw_input('What directory is the files in (relative or absolute)?\n')
-    # set as working directory, instead of concatenate path + filename
-    os.chdir(path)
-    files = os.listdir('.')
-    print('First file: ' + files[0])
-    try:
-        y_size = getYSize(files)
-    except Exception:
-        print('Error: Files in right format?')
-        exit(1)
-    print('Y size: ' + str(y_size))
-    if raw_input('Seems right? Continue? (y/n) ').lower() == 'y':
-        for f in files:
-            x = getX(f)
-            r = x * y_size + getY(f)
-            ch = 'ch' + str(getChannel(f)) + '-'
-            new_name = ch + str(r) + '.tif'
-            os.rename(f, new_name)
-            print('Renaming ' + f + ' to ' + new_name)
-
-
-
-def between(before, after, string):
-    """Strip string and return whats between before and after.
+# methods
+def stitch_macro(path, output_folder=None):
+    """Create fiji-macros for stitching all channels and z-stacks for a well.
 
     Parameters
     ----------
-    before:
-        String to match before wanted portion
-    after:
-        String to match after wanted portion
-    string:
-        String to parse
+    path : string
+        Well path.
+    output_folder : string
+        Folder to store images. If not given well path is used.
 
     Returns
     -------
-    String between before and after.
+    output_files, macros : tuple
+        Tuple with filenames and macros for stitched well.
     """
-    return string.split(before)[1].split(after)[0]
+    output_folder = output_folder or path
+    debug('stitching ' + path + ' to ' + output_folder)
+
+    fields = glob(_pattern(path, _field))
+
+    # assume we have rectangle of fields
+    xs = [attribute(field, 'X') for field in fields]
+    ys = [attribute(field, 'Y') for field in fields]
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+    fields_x = len(set(xs))
+    fields_y = len(set(ys))
+
+    # assume all fields are the same
+    # and get properties from images in first field
+    images = glob(_pattern(fields[0], _image))
+
+    # assume attributes are the same on all images
+    attr = attributes(images[0])
+
+    # find all channels and z-stacks
+    channels = []
+    z_stacks = []
+    for image in images:
+        channel = attribute_as_str(image, 'C')
+        if channel not in channels:
+            channels.append(channel)
+
+        z = attribute_as_str(image, 'Z')
+        if z not in z_stacks:
+            z_stacks.append(z)
+
+    debug('channels ' + str(channels))
+    debug('z-stacks ' + str(z_stacks))
+
+    # create macro
+    _, extension = os.path.splitext(images[-1])
+    if extension == '.tif':
+        # assume .ome.tif
+        extension = '.ome.tif'
+    macros = []
+    output_files = []
+    for Z in z_stacks:
+        for C in channels:
+            filenames = (_field + '--X{xx}--Y{yy}/' +
+                    _image + '--L' + attr.L +
+                    '--S' + attr.S +
+                    '--U' + attr.U +
+                    '--V' + attr.V +
+                    '--J' + attr.J +
+                    '--E' + attr.E +
+                    '--O' + attr.O +
+                    '--X{xx}--Y{yy}' +
+                    '--T' + attr.T +
+                    '--Z' + Z +
+                    '--C' + C +
+                    extension)
+            debug('filenames ' + filenames)
+
+            cur_attr = attributes(filenames)._asdict()
+            output_file = 'stitched--U{U}--V{V}--C{C}--Z{Z}.png'.format(**cur_attr)
+
+            output = os.path.join(output_folder, output_file)
+            debug('output ' + output)
+            output_files.append(output)
+            if os.path.isfile(output):
+                # file already exists
+                print('matrixscreener stitched file already exists {}'.format(output))
+                continue
+            macros.append(fijibin.macro.stitch(path, filenames,
+                                  fields_x, fields_y,
+                                  output_filename=output,
+                                  x_start=x_min, y_start=y_min))
+
+    return (output_files, macros)
+
+
+def compress(images, delete_tif=False, folder=None):
+    """Lossless compression. Save images as PNG and TIFF tags to json. Can be
+    reversed with `decompress`. Will run in multiprocessing, where
+    number of workers is decided by ``matrixscreener.experiment._pools``.
+
+    Parameters
+    ----------
+    images : list of filenames
+        Images to lossless compress.
+    delete_tif : bool
+        Wheter to delete original images.
+    folder : string
+        Where to store images. Basename will be kept.
+
+    Returns
+    -------
+    list of filenames
+        List of compressed files.
+    """
+    if type(images) == str:
+        # only one image
+        return compress_blocking([images], delete_tif, folder)
+
+    filenames = copy(images) # as images property will change when looping
+
+    return apply_async(compress_blocking, images=(filenames, True),
+                       delete_tif=(delete_tif, False), folder=(folder, False))
+
+
+def compress_blocking(images, delete_tif=False, folder=None):
+    """Lossless compression. Save images as PNG and TIFF tags to json. Process
+    can be reversed with `decompress`.
+
+    Parameters
+    ----------
+    images : list of filenames
+        Images to lossless compress.
+    delete_tif : bool
+        Wheter to delete original images.
+
+    Returns
+    -------
+    list of filenames
+        List of compressed files.
+    """
+    if type(images) == str:
+        # only one image
+        return compress_blocking([images], delete_tif, folder)
+
+    filenames = copy(images) # as images property will change when looping
+
+    compressed_images = []
+    for orig_filename in filenames:
+        debug('compressing {}'.format(orig_filename))
+        try:
+            new_filename, extension = os.path.splitext(orig_filename)
+            # remove last occurrence of .ome
+            new_filename = new_filename.rsplit('.ome', 1)[0]
+
+            # if compressed file should be put in specified folder
+            if folder:
+                basename = os.path.basename(new_filename)
+                new_filename = os.path.join(folder, basename + '.png')
+            else:
+                new_filename = new_filename + '.png'
+
+            # check if png exists
+            if os.path.isfile(new_filename):
+                compressed_images.append(new_filename)
+                msg = "Aborting compress, PNG already exists: {}".format(new_filename)
+                raise AssertionError(msg)
+            if extension != '.tif':
+                msg = "Aborting compress, not a TIFF: {}".format(orig_filename)
+                raise AssertionError(msg)
+
+            # open image, load and close file pointer
+            img = Image.open(orig_filename)
+            img.load() # load img-data before switching mode, also closes fp
+
+            # get tags and save them as json
+            tags = img.tag.as_dict()
+            with open(new_filename[:-4] + '.json', 'w') as f:
+                if img.mode == 'P':
+                    # keep palette
+                    tags['palette'] = img.getpalette()
+                json.dump(tags, f)
+
+            # check if image is palette-mode
+            if img.mode == 'P':
+                # switch to luminance to keep data intact
+                debug('palette-mode switched to luminance')
+                img.mode = 'L'
+            if img.mode == 'I;16':
+                # https://github.com/python-pillow/Pillow/issues/1099
+                img = img.convert(mode='I')
+
+            # compress/save
+            debug('saving to {}'.format(new_filename))
+            img.save(new_filename)
+            compressed_images.append(new_filename)
+
+            if delete_tif:
+                os.remove(orig_filename)
+
+        except (IOError, AssertionError) as e:
+            # print error - continue
+            print('matrixscreener {}'.format(e))
+
+    return compressed_images
 
 
 
-if __name__ == '__main__':
-    main()
+def decompress(images, delete_png=False, delete_json=False, folder=None):
+    """Reverse compression from tif to png and save them in original format
+    (ome.tif). TIFF-tags are gotten from json-files named the same as given
+    images.
+
+
+    Parameters
+    ----------
+    images : list of filenames
+        Image to decompress.
+    delete_png : bool
+        Wheter to delete PNG images.
+    delete_json : bool
+        Wheter to delete TIFF-tags stored in json files on compress.
+
+    Returns
+    -------
+    list of filenames
+        List of decompressed files.
+    """
+    if type(images) == str:
+        # only one image
+        return decompress([images])
+
+    filenames = copy(images) # as images property will change when looping
+
+    decompressed_images = []
+    for orig_filename in filenames:
+        debug('decompressing {}'.format(orig_filename))
+        try:
+            filename, extension = os.path.splitext(orig_filename)
+
+            # if decompressed file should be put in specified folder
+            if folder:
+                basename = os.path.basename(filename)
+                new_filename = os.path.join(folder, basename + '.ome.tif')
+            else:
+                new_filename = filename + '.ome.tif'
+
+            # check if tif exists
+            if os.path.isfile(new_filename):
+                decompressed_images.append(new_filename)
+                msg = "Aborting decompress, TIFF already exists: {}".format(orig_filename)
+                raise AssertionError(msg)
+            if extension != '.png':
+                msg = "Aborting decompress, not a PNG: {}".format(orig_filename)
+                raise AssertionError(msg)
+
+            # open image, load and close file pointer
+            img = Image.open(orig_filename)
+            img.load() # load img-data before switching mode, also closes fp
+
+            # get tags from json
+            info = {}
+            with open(filename + '.json', 'r') as f:
+                tags = json.load(f)
+                # convert dictionary to original types (lost in json conversion)
+                for tag,val in tags.items():
+                    if tag == 'palette':
+                        # hack hack
+                        continue
+                    if type(val) == list:
+                        val = tuple(val)
+                    if type(val[0]) == list:
+                        # list of list
+                        val = tuple(tuple(x) for x in val)
+                    info[int(tag)] = val
+
+            # check for color map
+            if 'palette' in tags:
+                img.putpalette(tags['palette'])
+
+            # save as tif
+            debug('saving to {}'.format(new_filename))
+            img.save(new_filename, tiffinfo=info)
+            decompressed_images.append(new_filename)
+
+            if delete_png:
+                os.remove(orig_filename)
+            if delete_json:
+                os.remove(filename + '.json')
+
+        except (IOError, AssertionError) as e:
+            # print error - continue
+            print('matrixscreener {}'.format(e))
+
+    return decompressed_images
+
+
+def attribute(path, name):
+    """Returns the two numbers found behind --[A-Z] in path. If several matches
+    are found, the last one is returned.
+
+    Parameters
+    ----------
+    path : string
+        String with path of file/folder to get attribute from.
+    name : string
+        Name of attribute to get. Should be A-Z or a-z (implicit converted to
+        uppercase).
+
+    Returns
+    -------
+    integer
+        Returns number found in path behind --name as an integer.
+    """
+    matches = re.findall('--' + name.upper() + '([0-9]{2})', path)
+    if matches:
+        return int(matches[-1])
+    else:
+        return None
+
+
+def attribute_as_str(path, name):
+    """Returns the two numbers found behind --[A-Z] in path. If several matches
+    are found, the last one is returned.
+
+    Parameters
+    ----------
+    path : string
+        String with path of file/folder to get attribute from.
+    name : string
+        Name of attribute to get. Should be A-Z or a-z (implicit converted to
+        uppercase).
+
+    Returns
+    -------
+    string
+        Returns two digit number found in path behind --name.
+    """
+    matches = re.findall('--' + name.upper() + '([0-9]{2})', path)
+    if matches:
+        return matches[-1]
+    else:
+        return None
+
+def attributes(path):
+    """Get attributes from path based on format --[A-Z]. Returns namedtuple
+    with upper case attributes equal to what found in path (string) and lower
+    case as int. If path holds several occurrences of same character, only the
+    last one is kept.
+
+    Example
+    -------
+    path = '/folder/file--X00-X01.tif' returns
+    namedtuple('attributes', 'X x')('01', 1)
+    """
+    # number of charcters set to numbers have changed in LAS AF X !!
+    matches = re.findall('--([A-Z]{1})([0-9]{2,4})', path)
+
+    keys = []
+    values = []
+    for k,v in matches:
+        if k in keys:
+            # keep only last key
+            i = keys.index(k)
+            del keys[i]
+            del values[i]
+        keys.append(k)
+        values.append(v)
+
+    lower_keys = [k.lower() for k in keys]
+    int_values= [int(v) for v in values]
+
+    attributes = namedtuple('attributes', keys + lower_keys)
+
+    return attributes(*values + int_values)
+
+
+
+# helper functions
+def _pattern(*names, **kwargs):
+    """Returns globbing pattern for name1/name2/../lastname + '--*' or
+    name1/name2/../lastname + extension if parameter `extension` it set.
+
+    Parameters
+    ----------
+    names : strings
+        Which path to join. Example: _pattern('path', 'to', 'experiment') will
+        return `path/to/experiment--*`.
+    extension : string
+        If other extension then --* is wanted.
+        Example: _pattern('path', 'to', 'image', extension='*.png') will return
+        `path/to/image*.png`.
+
+    Returns
+    -------
+    string
+        Joined glob pattern string.
+    """
+    if 'extension' not in kwargs:
+        kwargs['extension'] = '--*'
+    return os.path.join(*names) + kwargs['extension']
+
+
+def _set_path(self, path):
+    "Set self.path, self.dirname and self.basename."
+    import os.path
+    self.path = os.path.abspath(path)
+    self.dirname = os.path.dirname(path)
+    self.basename = os.path.basename(path)
