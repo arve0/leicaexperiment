@@ -2,6 +2,7 @@
 
 [![build-status-image]][travis]
 [![pypi-version]][pypi]
+[![wheel]][pypi]
 
 ## Overview
 This is a python module for interfacing with *Leica LAS AF/X Matrix Screener*
@@ -138,3 +139,4 @@ make docs
 [travis]: http://travis-ci.org/arve0/leicaexperiment?branch=master
 [pypi-version]: https://pypip.in/version/leicaexperiment/badge.svg
 [pypi]: https://pypi.python.org/pypi/leicaexperiment
+[wheel]: https://pypip.in/wheel/leicaexperiment/badge.png
