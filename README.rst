@@ -137,7 +137,6 @@ pip:
     git clone https://github.com/arve0/leicaexperiment
     cd leicaexperiment
     pip install -r dev-requirements.txt
-    ./setup.py develop
 
 run test
 ^^^^^^^^
