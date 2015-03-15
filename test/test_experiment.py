@@ -1,5 +1,6 @@
 import pytest
 from py import path
+from leicaexperiment.experiment import attribute
 
 @pytest.fixture
 def experiment(tmpdir):
@@ -28,6 +29,12 @@ def test_stitching(tmpdir, experiment):
     assert files == tmpdir.join('stitched').listdir(sort=True)
     # both channels stitched
     assert len(files) == 2
+
+    # stitch_coordinates
+    # images channel 0
+    imgs = [i for i in experiment.images if attribute(i, 'c') == 0]
+    attrs = experiment.stitch_coordinates()[2]
+    assert len(attrs) == len(imgs)
 
 
 def test_looping(experiment):
