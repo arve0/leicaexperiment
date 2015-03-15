@@ -114,11 +114,12 @@ Install dependencies and link development version of leicaexperiment to pip:
 ```bash
 git clone https://github.com/arve0/leicaexperiment
 cd leicaexperiment
-pip install -r dev-requirements.txt
+pip install -r requirements.txt
 ```
 
 #### run test
 ```bash
+pip install tox
 tox
 ```
 

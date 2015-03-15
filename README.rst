@@ -136,13 +136,14 @@ pip:
 
     git clone https://github.com/arve0/leicaexperiment
     cd leicaexperiment
-    pip install -r dev-requirements.txt
+    pip install -r requirements.txt
 
 run test
 ^^^^^^^^
 
 .. code:: bash
 
+    pip install tox
     tox
 
 extra output, jump into pdb upon error
