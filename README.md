@@ -46,6 +46,9 @@ experiment = Experiment('path/to/experiment')
 
 # if path is omitted, experiment path is used for output files
 stitched_images = experiment.stitch('/path/to/output/files/')
+
+# get information about placement of images in the stitch
+xs, ys, attrs = experiment.stitch_coordinates(well_x=0, well_y=0)
 ```
 
 #### stitch specific well
