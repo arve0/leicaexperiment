@@ -19,7 +19,7 @@ readme = open('README.rst').read()
 setup(
     name='leicaexperiment',
     version=open(os.path.join('leicaexperiment', 'VERSION')).read().strip(),
-    description='Read, stitch and compress Leica LAS MatrixS Screener experiments',
+    description='Read, stitch and compress Leica LAS Matrix Screener experiments',
     long_description=readme,
     author='Arve Seljebu',
     author_email='arve.seljebu@gmail.com',
