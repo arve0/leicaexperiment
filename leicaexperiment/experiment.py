@@ -200,7 +200,7 @@ class Experiment:
             return coordinates[0::2], coordinates[1::2], attr
 
         else:
-            print('leicaexperiment stitch_coordinates() Well not found')
+            print('leicaexperiment stitch_coordinates({}, {}) Well not found'.format(well_x, well_y))
 
 
 
