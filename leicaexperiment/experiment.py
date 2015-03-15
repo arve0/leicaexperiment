@@ -30,6 +30,8 @@ _slide = 'slide'
 _chamber = 'chamber'
 _field = 'field'
 _image = 'image'
+_additional_data = 'AdditionalData'
+_scanning_template = r'{ScanningTemplate}'
 
 
 # classes
@@ -90,6 +92,16 @@ class Experiment:
     def stitched(self):
         "List of stitched images if they are in experiment folder."
         return glob(_pattern(self.path, 'stitched'))
+
+    @property
+    def scanning_template(self):
+        "Path to {ScanningTemplate}name.xml of experiment."
+        tmpl = glob(_pattern(self.path, _additional_data, _scanning_template,
+                        extension='*.xml'))
+        if tmpl:
+            return tmpl[0]
+        else:
+            return ''
 
     def __str__(self):
         return 'leicaexperiment.Experiment({})'.format(self.path)
