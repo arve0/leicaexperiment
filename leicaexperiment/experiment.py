@@ -6,7 +6,7 @@ through an object.
 ##
 # imports
 ##
-import os, re, pydebug, fijibin.macro
+import ast, os, re, pydebug, fijibin.macro
 from collections import namedtuple
 from .utils import chop, apply_async
 
@@ -163,6 +163,44 @@ class Experiment:
             compression are also returned.
         """
         return compress(self.images, delete_tif, folder)
+
+
+    def stitch_coordinates(self, well_x=0, well_y=0):
+        """Get a list of stitch coordinates for the given well.
+
+        Parameters
+        ----------
+        well_x : int
+            X well coordinate.
+        well_y : int
+            Y well coordinate.
+
+        Returns
+        -------
+        (xs, ys, attr) : tuples with float and collections.OrderedDict
+            Tuple of x's, y's and attributes.
+        """
+        well = [w for w in self.wells
+                    if attribute(w, 'u') == well_x and
+                       attribute(w, 'v') == well_y]
+
+        if len(well) == 1:
+            well = well[0]
+            tile = os.path.join(well, 'TileConfiguration.registered.txt')
+
+            with open(tile) as f:
+                data = [x.strip()
+                            for l in f.readlines()
+                                if l[0:7] == 'image--'
+                                    for x in l.split(';')] # flat list
+                coordinates = (ast.literal_eval(x) for x in data[2::3])
+                # flatten
+                coordinates = sum(coordinates, ())
+                attr = tuple(attributes(x) for x in data[0::3])
+            return coordinates[0::2], coordinates[1::2], attr
+
+        else:
+            print('leicaexperiment stitch_coordinates() Well not found')
 
 
 
