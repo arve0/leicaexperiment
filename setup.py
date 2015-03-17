@@ -32,7 +32,8 @@ setup(
     install_requires=[
         'pydebug',
         'Pillow',
-        'fijibin'
+        'fijibin',
+        'lxml'
     ],
     license='MIT',
     zip_safe=False,

@@ -9,6 +9,7 @@ through an object.
 import ast, os, re, pydebug, fijibin.macro
 from collections import namedtuple
 from .utils import chop, apply_async
+from lxml import objectify
 
 # compress
 import json
@@ -163,6 +164,39 @@ class Experiment:
             compression are also returned.
         """
         return compress(self.images, delete_tif, folder)
+
+
+    def field_metadata(self, well_x=0, well_y=0, field_x=0, field_y=0):
+        """Get OME-XML metadata of given field.
+
+        Parameters
+        ----------
+        well_x : int
+            X well coordinate.
+        well_y : int
+            Y well coordinate.
+        field_x : int
+            X field coordinate.
+        field_y : int
+            Y field coordinate.
+
+        Returns
+        -------
+        lxml.objectify.ObjectifiedElement
+            lxml object of OME-XML found in slide/chamber/field/metadata.
+        """
+        def condition(path):
+            attrs = attributes(path)
+            return (attrs.u == well_x and attrs.v == well_y
+                        and attrs.x == field_x and attrs.y == field_y)
+
+        field = [f for f in self.fields if condition(f)]
+
+        if field:
+            field = field[0]
+            filename = _pattern(field, 'metadata', _image, extension='*.ome.xml')
+            filename = glob(filename)[0] # resolve, assume found
+            return objectify.parse(filename).getroot()
 
 
     def stitch_coordinates(self, well_x=0, well_y=0):
@@ -551,10 +585,19 @@ def attributes(path):
     case as int. If path holds several occurrences of same character, only the
     last one is kept.
 
-    Example
+        >>> attrs = attributes('/folder/file--X00-X01.tif')
+        >>> print(attrs)
+        namedtuple('attributes', 'X x')('01', 1)
+        >>> print(attrs.x)
+        1
+
+    Parameters
+    ----------
+    path : string
+
+    Returns
     -------
-    path = '/folder/file--X00-X01.tif' returns
-    namedtuple('attributes', 'X x')('01', 1)
+    collections.namedtuple
     """
     # number of charcters set to numbers have changed in LAS AF X !!
     matches = re.findall('--([A-Z]{1})([0-9]{2,4})', path)
