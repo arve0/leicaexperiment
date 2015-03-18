@@ -298,7 +298,9 @@ def stitch_macro(path, output_folder=None):
     output_files = []
     for Z in z_stacks:
         for C in channels:
-            filenames = (_field + '--X{xx}--Y{yy}/' +
+            filenames = os.path.join(
+
+                    _field + '--X{xx}--Y{yy}',
                     _image + '--L' + attr.L +
                     '--S' + attr.S +
                     '--U' + attr.U +
