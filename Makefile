@@ -47,8 +47,10 @@ docs:
 	open docs/_build/html/index.html
 
 release: clean rst
+	git tag v`cat leicaexperiment/VERSION`
 	python setup.py sdist upload
 	python setup.py bdist_wheel upload
+	git push && git pt
 
 rst:
 	if type pandoc; then pandoc --from=markdown --to=rst README.md -o README.rst; fi
