@@ -2,5 +2,6 @@
 wheel>=0.22
 numpy
 setuptools-git
+fijibin
 
 -e .
