@@ -410,6 +410,7 @@ def compress_blocking(images, delete_tif=False, folder=None):
 
             # open image, load and close file pointer
             img = Image.open(orig_filename)
+            fptr = img.fp # keep file pointer, for closing
             img.load() # load img-data before switching mode, also closes fp
 
             # get tags and save them as json
@@ -434,6 +435,7 @@ def compress_blocking(images, delete_tif=False, folder=None):
             img.save(new_filename)
             compressed_images.append(new_filename)
 
+            fptr.close() # windows bug Pillow
             if delete_tif:
                 os.remove(orig_filename)
 
