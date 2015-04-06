@@ -73,4 +73,6 @@ def apply_async(fn, **kwargs):
         else:
             results.append(result)
 
+    p.close()
+
     return results
