@@ -13,7 +13,7 @@ before_install:
   - ./miniconda.sh -b
   - export PATH=/home/travis/miniconda/bin:$PATH
   - conda update --yes conda
-  - conda create --yes -n condaenv python=2.7 pip
+  - conda create --yes -n condaenv python=$TRAVIS_PYTHON_VERSION
   - source activate condaenv
   # The next couple lines fix a crash with multiprocessing on Travis and are not specific to using Miniconda
   - sudo rm -rf /dev/shm
@@ -21,7 +21,8 @@ before_install:
 
 # Install packages
 install:
-  - conda install --yes python=$TRAVIS_PYTHON_VERSION numpy lxml
+  - conda env list # show active environment
+  - conda install --yes pip numpy lxml Pillow
   - pip install -r requirements.txt
 
 script:
