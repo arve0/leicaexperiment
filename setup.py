@@ -33,7 +33,8 @@ setup(
         'pydebug',
         'Pillow',
         'fijibin',
-        'lxml'
+        'lxml',
+        'joblib'
     ],
     license='MIT',
     zip_safe=False,

@@ -8,8 +8,17 @@ through an object.
 ##
 import ast, os, re, pydebug, fijibin.macro
 from collections import namedtuple
-from .utils import chop, apply_async
 from lxml import objectify
+
+# multiprocessing
+from .utils import chop
+from joblib import Parallel, delayed
+from multiprocessing import cpu_count
+
+try:
+    _pools = cpu_count()
+except NotImplementedError:
+    _pools = 4
 
 # compress
 import json
@@ -139,10 +148,14 @@ class Experiment:
             macros.extend(m)
             files.extend(f)
 
-        output_files = apply_async(fijibin.macro.run, macro=(macros, True),
-                                   output_files=(files,True))
+        chopped_arguments = zip(chop(macros, _pools), chop(files, _pools))
+        chopped_filenames = Parallel(n_jobs=_pools)(delayed(fijibin.macro.run)
+                                      (macro=arg[0], output_files=arg[1])
+                                      for arg in chopped_arguments)
 
-        return output_files
+        # flatten
+        return [f for list_ in chopped_filenames for f in list_]
+
 
     def compress(self, delete_tif=False, folder=None):
         """Lossless compress all images in experiment to PNG. If folder is
@@ -354,96 +367,93 @@ def compress(images, delete_tif=False, folder=None):
     """
     if type(images) == str:
         # only one image
-        return compress_blocking([images], delete_tif, folder)
+        return [compress_blocking(images, delete_tif, folder)]
 
     filenames = copy(images) # as images property will change when looping
 
-    return apply_async(compress_blocking, images=(filenames, True),
-                       delete_tif=(delete_tif, False), folder=(folder, False))
+
+    return Parallel(n_jobs=_pools)(delayed(compress_blocking)
+                     (image=image, delete_tif=delete_tif, folder=folder)
+                     for image in filenames)
 
 
-def compress_blocking(images, delete_tif=False, folder=None):
-    """Lossless compression. Save images as PNG and TIFF tags to json. Process
+def compress_blocking(image, delete_tif=False, folder=None, force=False):
+    """Lossless compression. Save image as PNG and TIFF tags to json. Process
     can be reversed with `decompress`.
 
     Parameters
     ----------
-    images : list of filenames
-        Images to lossless compress.
+    image : string
+        TIF-image which should be compressed lossless.
     delete_tif : bool
         Wheter to delete original images.
+    force : bool
+        Wheter to compress even if .png already exists.
 
     Returns
     -------
-    list of filenames
-        List of compressed files.
+    string
+        Filename of compressed image, or empty string if compress failed.
     """
-    if type(images) == str:
-        # only one image
-        return compress_blocking([images], delete_tif, folder)
 
-    filenames = copy(images) # as images property will change when looping
+    debug('compressing {}'.format(image))
+    try:
+        new_filename, extension = os.path.splitext(image)
+        # remove last occurrence of .ome
+        new_filename = new_filename.rsplit('.ome', 1)[0]
 
-    compressed_images = []
-    for orig_filename in filenames:
-        debug('compressing {}'.format(orig_filename))
-        try:
-            new_filename, extension = os.path.splitext(orig_filename)
-            # remove last occurrence of .ome
-            new_filename = new_filename.rsplit('.ome', 1)[0]
+        # if compressed file should be put in specified folder
+        if folder:
+            basename = os.path.basename(new_filename)
+            new_filename = os.path.join(folder, basename + '.png')
+        else:
+            new_filename = new_filename + '.png'
 
-            # if compressed file should be put in specified folder
-            if folder:
-                basename = os.path.basename(new_filename)
-                new_filename = os.path.join(folder, basename + '.png')
-            else:
-                new_filename = new_filename + '.png'
-
-            # check if png exists
-            if os.path.isfile(new_filename):
-                compressed_images.append(new_filename)
-                msg = "Aborting compress, PNG already exists: {}".format(new_filename)
-                raise AssertionError(msg)
-            if extension != '.tif':
-                msg = "Aborting compress, not a TIFF: {}".format(orig_filename)
-                raise AssertionError(msg)
-
-            # open image, load and close file pointer
-            img = Image.open(orig_filename)
-            fptr = img.fp # keep file pointer, for closing
-            img.load() # load img-data before switching mode, also closes fp
-
-            # get tags and save them as json
-            tags = img.tag.as_dict()
-            with open(new_filename[:-4] + '.json', 'w') as f:
-                if img.mode == 'P':
-                    # keep palette
-                    tags['palette'] = img.getpalette()
-                json.dump(tags, f)
-
-            # check if image is palette-mode
-            if img.mode == 'P':
-                # switch to luminance to keep data intact
-                debug('palette-mode switched to luminance')
-                img.mode = 'L'
-            if img.mode == 'I;16':
-                # https://github.com/python-pillow/Pillow/issues/1099
-                img = img.convert(mode='I')
-
-            # compress/save
-            debug('saving to {}'.format(new_filename))
-            img.save(new_filename)
+        # check if png exists
+        if os.path.isfile(new_filename) and not force:
             compressed_images.append(new_filename)
+            msg = "Aborting compress, PNG already exists: {}".format(new_filename)
+            raise AssertionError(msg)
+        if extension != '.tif':
+            msg = "Aborting compress, not a TIFF: {}".format(image)
+            raise AssertionError(msg)
 
-            fptr.close() # windows bug Pillow
-            if delete_tif:
-                os.remove(orig_filename)
+        # open image, load and close file pointer
+        img = Image.open(image)
+        fptr = img.fp # keep file pointer, for closing
+        img.load() # load img-data before switching mode, also closes fp
 
-        except (IOError, AssertionError) as e:
-            # print error - continue
-            print('leicaexperiment {}'.format(e))
+        # get tags and save them as json
+        tags = img.tag.as_dict()
+        with open(new_filename[:-4] + '.json', 'w') as f:
+            if img.mode == 'P':
+                # keep palette
+                tags['palette'] = img.getpalette()
+            json.dump(tags, f)
 
-    return compressed_images
+        # check if image is palette-mode
+        if img.mode == 'P':
+            # switch to luminance to keep data intact
+            debug('palette-mode switched to luminance')
+            img.mode = 'L'
+        if img.mode == 'I;16':
+            # https://github.com/python-pillow/Pillow/issues/1099
+            img = img.convert(mode='I')
+
+        # compress/save
+        debug('saving to {}'.format(new_filename))
+        img.save(new_filename)
+
+        fptr.close() # windows bug Pillow
+        if delete_tif:
+            os.remove(image)
+
+    except (IOError, AssertionError) as e:
+        # print error - continue
+        print('leicaexperiment {}'.format(e))
+        return ''
+
+    return new_filename
 
 
 
