@@ -22,7 +22,7 @@ before_install:
 # Install packages
 install:
   - conda env list # show active environment
-  - conda install --yes pip numpy lxml Pillow
+  - conda install --yes pip numpy lxml Pillow pytest
   - pip install -r requirements.txt
 
 script:
