@@ -133,6 +133,7 @@ DEBUG=leicaexperiment tox -- --pdb -s
 
 #### build api reference
 ```bash
+pip install -r docs/requirements.txt
 make docs
 ```
 
