@@ -119,6 +119,92 @@ class Experiment:
     def __repr__(self):
         return self.__str__()
 
+
+    def image(self, well_x, well_y, field_x, field_y):
+        """Get path of specified image.
+
+        Parameters
+        ----------
+        well_x : int
+            Starts at 0.
+        well_y : int
+            Starts at 0.
+        field_x : int
+            Starts at 0.
+        field_y : int
+            Starts at 0.
+
+        Returns
+        -------
+        string
+            Path to image or empty string if image is not found.
+        """
+        return next((i for i in self.images
+                     if attribute(i, 'u') == well_x and
+                        attribute(i, 'v') == well_y and
+                        attribute(i, 'x') == field_x and
+                        attribute(i, 'y') == field_y), '')
+
+
+    def well_images(self, well_x, well_y):
+        """Get list of paths to images in specified well.
+
+
+        Parameters
+        ----------
+        well_x : int
+            Starts at 0.
+        well_y : int
+            Starts at 0.
+
+        Returns
+        -------
+        list of strings
+            Paths to images or empty list if no images are found.
+        """
+        return list(i for i in self.images
+                    if attribute(i, 'u') == well_x and
+                       attribute(i, 'v') == well_y)
+
+
+    def columns(self, well_x, well_y):
+        """List of columns for given well.
+
+        Parameters
+        ----------
+        well_x : int
+            Starts at 0.
+        well_y : int
+            Starts at 0.
+
+        Returns
+        -------
+        list of ints
+            Columns found for specified well.
+        """
+        imgs = self.well_images(well_x, well_y)
+        return list(set([attribute(img, 'y') for img in imgs]))
+
+
+    def rows(self, well_x, well_y):
+        """List of rows for given well.
+
+        Parameters
+        ----------
+        well_x : int
+            Starts at 0.
+        well_y : int
+            Starts at 0.
+
+        Returns
+        -------
+        list of ints
+            Rows found for specified well.
+        """
+        imgs = self.well_images(well_x, well_y)
+        return list(set([attribute(img, 'x') for img in imgs]))
+
+
     def stitch(self, folder=None):
         """Stitches all wells in experiment with ImageJ. Stitched images are
         saved in experiment root.
