@@ -52,7 +52,7 @@ release: clean rst tag
 	git push && git pt
 
 tag:
-	git tag v`cat leicacam/VERSION`
+	git tag v`cat leicaexperiment/VERSION`
 
 rst:
 	if type pandoc; then pandoc --from=markdown --to=rst README.md -o README.rst; fi

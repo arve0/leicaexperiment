@@ -183,7 +183,7 @@ class Experiment:
             Columns found for specified well.
         """
         imgs = self.well_images(well_x, well_y)
-        return list(set([attribute(img, 'y') for img in imgs]))
+        return list(set([attribute(img, 'x') for img in imgs]))
 
 
     def rows(self, well_x, well_y):
@@ -202,7 +202,7 @@ class Experiment:
             Rows found for specified well.
         """
         imgs = self.well_images(well_x, well_y)
-        return list(set([attribute(img, 'x') for img in imgs]))
+        return list(set([attribute(img, 'y') for img in imgs]))
 
 
     def stitch(self, folder=None):
