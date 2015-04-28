@@ -46,11 +46,13 @@ docs:
 	$(MAKE) -C docs html
 	open docs/_build/html/index.html
 
-release: clean rst
-	git tag v`cat leicaexperiment/VERSION`
+release: clean rst tag
 	python setup.py sdist upload
 	python setup.py bdist_wheel upload
 	git push && git pt
+
+tag:
+	git tag v`cat leicacam/VERSION`
 
 rst:
 	if type pandoc; then pandoc --from=markdown --to=rst README.md -o README.rst; fi
