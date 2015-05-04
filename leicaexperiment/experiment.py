@@ -73,20 +73,24 @@ class Experiment:
         # alias
         self.chambers = self.wells
 
+
     @property
     def slides(self):
         "List of paths to slides."
         return glob(self._slide_path)
+
 
     @property
     def wells(self):
         "List of paths to wells."
         return glob(self._well_path)
 
+
     @property
     def fields(self):
         "List of paths to fields."
         return glob(self._field_path)
+
 
     @property
     def images(self):
@@ -98,10 +102,12 @@ class Experiment:
         imgs.extend(glob(pngs))
         return imgs
 
+
     @property
     def stitched(self):
         "List of stitched images if they are in experiment folder."
         return glob(_pattern(self.path, 'stitched'))
+
 
     @property
     def scanning_template(self):
@@ -113,26 +119,50 @@ class Experiment:
         else:
             return ''
 
+
+    @property
+    def well_columns(self):
+        """All well columns in experiment. Equivalent to --V in files.
+
+        Returns
+        -------
+        list of ints
+        """
+        return list(set([attribute(img, 'v') for img in self.images]))
+
+
+    @property
+    def well_rows(self, well_row, well_column):
+        """All well rows in experiment. Equivalent to --U in files.
+
+        Returns
+        -------
+        list of ints
+        """
+        return list(set([attribute(img, 'u') for img in self.images]))
+
+
     def __str__(self):
         return 'leicaexperiment.Experiment({})'.format(self.path)
+
 
     def __repr__(self):
         return self.__str__()
 
 
-    def image(self, well_x, well_y, field_x, field_y):
+    def image(self, well_row, well_column, field_row, field_column):
         """Get path of specified image.
 
         Parameters
         ----------
-        well_x : int
-            Starts at 0.
-        well_y : int
-            Starts at 0.
-        field_x : int
-            Starts at 0.
-        field_y : int
-            Starts at 0.
+        well_row : int
+            Starts at 0. Same as --U in files.
+        well_column : int
+            Starts at 0. Same as --V in files.
+        field_row : int
+            Starts at 0. Same as --Y in files.
+        field_column : int
+            Starts at 0. Same as --X in files.
 
         Returns
         -------
@@ -140,22 +170,22 @@ class Experiment:
             Path to image or empty string if image is not found.
         """
         return next((i for i in self.images
-                     if attribute(i, 'u') == well_x and
-                        attribute(i, 'v') == well_y and
-                        attribute(i, 'x') == field_x and
-                        attribute(i, 'y') == field_y), '')
+                     if attribute(i, 'u') == well_column and
+                        attribute(i, 'v') == well_row and
+                        attribute(i, 'x') == field_column and
+                        attribute(i, 'y') == field_row), '')
 
 
-    def well_images(self, well_x, well_y):
+    def well_images(self, well_row, well_column):
         """Get list of paths to images in specified well.
 
 
         Parameters
         ----------
-        well_x : int
-            Starts at 0.
-        well_y : int
-            Starts at 0.
+        well_row : int
+            Starts at 0. Same as --V in files.
+        well_column : int
+            Starts at 0. Save as --U in files.
 
         Returns
         -------
@@ -163,45 +193,45 @@ class Experiment:
             Paths to images or empty list if no images are found.
         """
         return list(i for i in self.images
-                    if attribute(i, 'u') == well_x and
-                       attribute(i, 'v') == well_y)
+                    if attribute(i, 'u') == well_column and
+                       attribute(i, 'v') == well_row)
 
 
-    def columns(self, well_x, well_y):
-        """List of columns for given well.
+    def field_columns(self, well_row, well_column):
+        """Field columns for given well. Equivalent to --X in files.
 
         Parameters
         ----------
-        well_x : int
-            Starts at 0.
-        well_y : int
-            Starts at 0.
+        well_row : int
+            Starts at 0. Same as --V in files.
+        well_column : int
+            Starts at 0. Same as --U in files.
 
         Returns
         -------
         list of ints
             Columns found for specified well.
         """
-        imgs = self.well_images(well_x, well_y)
+        imgs = self.well_images(well_row, well_column)
         return list(set([attribute(img, 'x') for img in imgs]))
 
 
-    def rows(self, well_x, well_y):
-        """List of rows for given well.
+    def field_rows(self, well_row, well_column):
+        """Field rows for given well. Equivalent to --Y in files.
 
         Parameters
         ----------
-        well_x : int
-            Starts at 0.
-        well_y : int
-            Starts at 0.
+        well_column : int
+            Starts at 0. Same as --U in files.
+        well_row : int
+            Starts at 0. Same as --V in files.
 
         Returns
         -------
         list of ints
             Rows found for specified well.
         """
-        imgs = self.well_images(well_x, well_y)
+        imgs = self.well_images(well_row, well_column)
         return list(set([attribute(img, 'y') for img in imgs]))
 
 
@@ -265,19 +295,20 @@ class Experiment:
         return compress(self.images, delete_tif, folder)
 
 
-    def field_metadata(self, well_x=0, well_y=0, field_x=0, field_y=0):
+    def field_metadata(self, well_row=0, well_column=0,
+                       field_row=0, field_column=0):
         """Get OME-XML metadata of given field.
 
         Parameters
         ----------
-        well_x : int
-            X well coordinate.
-        well_y : int
-            Y well coordinate.
-        field_x : int
-            X field coordinate.
-        field_y : int
-            Y field coordinate.
+        well_row : int
+            Y well coordinate. Same as --V in files.
+        well_column : int
+            X well coordinate. Same as --U in files.
+        field_row : int
+            Y field coordinate. Same as --Y in files.
+        field_column : int
+            X field coordinate. Same as --X in files.
 
         Returns
         -------
@@ -286,27 +317,28 @@ class Experiment:
         """
         def condition(path):
             attrs = attributes(path)
-            return (attrs.u == well_x and attrs.v == well_y
-                        and attrs.x == field_x and attrs.y == field_y)
+            return (attrs.u == well_column and attrs.v == well_row
+                        and attrs.x == field_column and attrs.y == field_row)
 
         field = [f for f in self.fields if condition(f)]
 
         if field:
             field = field[0]
-            filename = _pattern(field, 'metadata', _image, extension='*.ome.xml')
+            filename = _pattern(field, 'metadata',
+                                _image, extension='*.ome.xml')
             filename = glob(filename)[0] # resolve, assume found
             return objectify.parse(filename).getroot()
 
 
-    def stitch_coordinates(self, well_x=0, well_y=0):
+    def stitch_coordinates(self, well_row=0, well_column=0):
         """Get a list of stitch coordinates for the given well.
 
         Parameters
         ----------
-        well_x : int
-            X well coordinate.
-        well_y : int
-            Y well coordinate.
+        well_row : int
+            Y well coordinate. Same as --V in files.
+        well_column : int
+            X well coordinate. Same as --U in files.
 
         Returns
         -------
@@ -314,8 +346,8 @@ class Experiment:
             Tuple of x's, y's and attributes.
         """
         well = [w for w in self.wells
-                    if attribute(w, 'u') == well_x and
-                       attribute(w, 'v') == well_y]
+                    if attribute(w, 'u') == well_column and
+                       attribute(w, 'v') == well_row]
 
         if len(well) == 1:
             well = well[0]
@@ -333,7 +365,8 @@ class Experiment:
             return coordinates[0::2], coordinates[1::2], attr
 
         else:
-            print('leicaexperiment stitch_coordinates({}, {}) Well not found'.format(well_x, well_y))
+            print('leicaexperiment stitch_coordinates'
+                  '({}, {}) Well not found'.format(well_row, well_column))
 
 
 
@@ -363,8 +396,8 @@ def stitch_macro(path, output_folder=None):
     ys = [attribute(field, 'Y') for field in fields]
     x_min, x_max = min(xs), max(xs)
     y_min, y_max = min(ys), max(ys)
-    fields_x = len(set(xs))
-    fields_y = len(set(ys))
+    fields_column = len(set(xs))
+    fields_row = len(set(ys))
 
     # assume all fields are the same
     # and get properties from images in first field
@@ -415,17 +448,18 @@ def stitch_macro(path, output_folder=None):
             debug('filenames ' + filenames)
 
             cur_attr = attributes(filenames)._asdict()
-            output_file = 'stitched--U{U}--V{V}--C{C}--Z{Z}.png'.format(**cur_attr)
+            f = 'stitched--U{U}--V{V}--C{C}--Z{Z}.png'.format(**cur_attr)
 
-            output = os.path.join(output_folder, output_file)
+            output = os.path.join(output_folder, f)
             debug('output ' + output)
             output_files.append(output)
             if os.path.isfile(output):
                 # file already exists
-                print('leicaexperiment stitched file already exists {}'.format(output))
+                print('leicaexperiment stitched file already'
+                      ' exists {}'.format(output))
                 continue
             macros.append(fijibin.macro.stitch(path, filenames,
-                                  fields_x, fields_y,
+                                  fields_column, fields_row,
                                   output_filename=output,
                                   x_start=x_min, y_start=y_min))
 
@@ -498,7 +532,8 @@ def compress_blocking(image, delete_tif=False, folder=None, force=False):
         # check if png exists
         if os.path.isfile(new_filename) and not force:
             compressed_images.append(new_filename)
-            msg = "Aborting compress, PNG already exists: {}".format(new_filename)
+            msg = "Aborting compress, PNG already"
+                  " exists: {}".format(new_filename)
             raise AssertionError(msg)
         if extension != '.tif':
             msg = "Aborting compress, not a TIFF: {}".format(image)
@@ -585,10 +620,12 @@ def decompress(images, delete_png=False, delete_json=False, folder=None):
             # check if tif exists
             if os.path.isfile(new_filename):
                 decompressed_images.append(new_filename)
-                msg = "Aborting decompress, TIFF already exists: {}".format(orig_filename)
+                msg = "Aborting decompress, TIFF already exists:" \
+                      " {}".format(orig_filename)
                 raise AssertionError(msg)
             if extension != '.png':
-                msg = "Aborting decompress, not a PNG: {}".format(orig_filename)
+                msg = "Aborting decompress, not a "
+                      "PNG: {}".format(orig_filename)
                 raise AssertionError(msg)
 
             # open image, load and close file pointer
