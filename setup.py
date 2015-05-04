@@ -40,7 +40,7 @@ setup(
     zip_safe=False,
     keywords='leicaexperiment',
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
