@@ -53,10 +53,9 @@ xs, ys, attrs = experiment.stitch_coordinates(well_x=0, well_y=0)
 
 #### stitch specific well
 ```python
-from leicaexperiment import Experiment
+from leicaexperiment import stitch
 
-# path should contain AditionalData and slide--S*
-stitched_images = experiment.stitch('/path/to/well')
+stitched_images = stitch('/path/to/well')
 ```
 
 #### do stuff on all images
@@ -71,24 +70,25 @@ for image in experiment.images:
 
 #### do stuff on specific wells/fields
 ```python
-from leicaexperiment import attribute
+from leicaexperiment import Experiment
+from PIL import Image
 
-# select specific parts
-selected_wells = [well for well in experiment.wells if 'U00' in well]
-for well in selected_wells:
+experiment = Experiment('path/to/experiment--')
+
+# on images in well --U00--V00
+for well in experiment.well_images(0, 0):
     do stuff...
 
-def condition(path):
-    x_above = attribute(path, 'X') > 1
-    x_below = attribute(path, 'X') < 5
-    return x_above and x_below
-
-selected_fields = [field for field in experiment.fields if condition(field)]
-for field in selected_fields:
-    do stuff..
+# rotate top left image in first row
+rows = experiment.well_rows
+for r in rows:
+    img_path = experiment.image(r, 0, 0, 0)
+    img = Image.open(img_path)
+    img = img.rotate(90)
+    img.save(img_path)
 ```
 
-#### subtract data
+#### subtract attributes from file names
 ```python
 from leicaexperiment import attribute
 
@@ -99,10 +99,10 @@ min_ch, max_ch = min(channels), max(channels)
 
 #### batch lossless compress of experiment
 ```python
-from leicaexperiment import Experiment, compress
+from leicaexperiment import Experiment
 
 e = Experiment('/path/to/experiment')
-pngs = compress(e.images)
+pngs = e.compress()
 print(pngs)
 ```
 
