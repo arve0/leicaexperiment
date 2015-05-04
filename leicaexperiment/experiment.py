@@ -532,7 +532,7 @@ def compress_blocking(image, delete_tif=False, folder=None, force=False):
         # check if png exists
         if os.path.isfile(new_filename) and not force:
             compressed_images.append(new_filename)
-            msg = "Aborting compress, PNG already"
+            msg = "Aborting compress, PNG already" \
                   " exists: {}".format(new_filename)
             raise AssertionError(msg)
         if extension != '.tif':
@@ -624,7 +624,7 @@ def decompress(images, delete_png=False, delete_json=False, folder=None):
                       " {}".format(orig_filename)
                 raise AssertionError(msg)
             if extension != '.png':
-                msg = "Aborting decompress, not a "
+                msg = "Aborting decompress, not a " \
                       "PNG: {}".format(orig_filename)
                 raise AssertionError(msg)
 

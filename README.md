@@ -79,7 +79,7 @@ experiment = Experiment('path/to/experiment--')
 for well in experiment.well_images(0, 0):
     do stuff...
 
-# rotate top left image in first row
+# rotate top left image in all rows
 rows = experiment.well_rows
 for r in rows:
     img_path = experiment.image(r, 0, 0, 0)
