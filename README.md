@@ -141,6 +141,6 @@ make docs
 
 [build-status-image]: https://secure.travis-ci.org/arve0/leicaexperiment.png?branch=master
 [travis]: http://travis-ci.org/arve0/leicaexperiment?branch=master
-[pypi-version]: https://pypip.in/version/leicaexperiment/badge.svg
+[pypi-version]: https://img.shields.io/pypi/v/leicaexperiment.svg
 [pypi]: https://pypi.python.org/pypi/leicaexperiment
-[wheel]: https://pypip.in/wheel/leicaexperiment/badge.svg
+[wheel]: https://img.shields.io/pypi/wheel/leicaexperiment.svg
